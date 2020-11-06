@@ -2,11 +2,13 @@ from spinup import ppo_pytorch as ppo
 import torch.nn as nn
 import gym
 import gym_panda
-
+import torch
 import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 import spinup.algos.pytorch.ppo.core as core
+
+entrypoints = torch.hub.list('pytorch/vision:v0.5.0', force_reload=True)
 
 class ProcessFrame84(gym.ObservationWrapper):
     def __init__(self,env=None):
@@ -42,10 +44,16 @@ class ImageToPytorch(gym.ObservationWrapper):
 
     def observation(self, observation):
         return np.moveaxis(observation,2,0)
-    
+
 
 class MoveTowardZ(gym.ActionWrapper):
-    pass
+    def __init__(self,env):
+        super(MoveTowardZ,self).__init__(env)
+
+    def action(self,action):
+        action[2]=-0.3
+        return action
+
 
 env=gym.make('panda-v0')
 env=ProcessFrame84(env)
@@ -53,3 +61,13 @@ env=ImageToPytorch(env)
 env=MoveTowardZ(env)
 
 
+# image=env.reset()
+# plt.figure()
+# plt.imshow(image.squeeze(),cmap='gray')
+# plt.title("example extracted screen")
+# plt.show()
+
+env_fn=lambda:env
+ac_kwargs=dict(hidden_sizes=[18,64,64],activation=nn.ReLU)
+logger_kwargs=dict(output_dir='spinup',exp_name='panda_ppo')
+ppo(env_fn=env_fn,actor_critic=core.CNNActorCritic,ac_kwargs=ac_kwargs,steps_per_epoch=5000,epochs=250,logger_kwargs=logger_kwargs)
